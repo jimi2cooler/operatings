@@ -345,7 +345,7 @@ def end_word_processing(data) :
         
         if data_list[-1].endswith('과') :
             sg_word = ['청장', '시장']
-            if sg_word in data_list[-1] :
+            if any(keyword in data_list[-1] for keyword in sg_word) :
                 txt_temp = data_list[-1].split(sep = '장')
                 for w in txt_temp :
                     txt = " ".join(ends_processing(w))
@@ -402,8 +402,8 @@ def ocr_df_processing(df) :
 
     for k, v in xls_raw_df.iterrows() :
 
-        office_name = v[11].strip()
-        office_with_role = v[14].strip()
+        office_name = v[10].strip()
+        office_with_role = v[13].strip()
 
         if office_name.endswith('과') :
             if process.extract(office_name, unique_office, scorer=fuzz.token_set_ratio) == 100 :
@@ -412,7 +412,8 @@ def ocr_df_processing(df) :
             else :
                 res_pairs = process.extract(office_name, unique_office, scorer=fuzz.token_sort_ratio)
                 if res_pairs[0][1] <80 :
-                    office_cd, final_office_name = ''
+                    office_cd = ''
+                    final_office_name = ''
                 else :
                     office_cd = office_cd_refined_df['관청코드'][office_cd_refined_df['관청명(시군구)'] == res_pairs[0][0]].iloc[0]
                     final_office_name = office_cd_refined_df['관청명(시군구)'][office_cd_refined_df['관청명(시군구)'] == res_pairs[0][0]].iloc[0]
@@ -420,7 +421,8 @@ def ocr_df_processing(df) :
         else :
             res_pairs = process.extract(office_with_role, unique_office_with_role, scorer=fuzz.token_sort_ratio)
             if res_pairs[0][1] <80 :
-                office_cd, final_office_name = ''
+                office_cd = ''
+                final_office_name = ''
             else :
                 office_cd = office_cd_refined_df['관청코드'][office_cd_refined_df['관청_관할업무'] == res_pairs[0][0]].iloc[0]
                 final_office_name = office_cd_refined_df['관청명(시군구)'][office_cd_refined_df['관청_관할업무'] == res_pairs[0][0]].iloc[0]
