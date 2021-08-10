@@ -490,6 +490,8 @@ def main():
     ocr_return_df = naver_ocr_processing(ocr_jpg_files, paths_to_handle, api_url, secret_key)
     processed_df = ocr_df_processing(ocr_return_df)
     xlsx_file_name = "naver_ocr_result_" + working_date + '.xlsx'
+    xls_fields = ['no','file_name', 'title','발급기관', '차량번호', '위반장소', '위반일시', '위반내용', '납부기한', '납부금액', '관청코드_upload', '관청명칭_upload']
+    processed_df = processed_df[xls_fields]
     processed_df.to_excel(os.path.join(paths_to_handle[7], xlsx_file_name), index=False)
 
     print('OCR Result saved in excel.!!')
