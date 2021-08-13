@@ -161,7 +161,7 @@ def naver_ocr_processing(ocr_jpg_files, paths_to_handle, api_url, secret_key) :
                 for i in range(fields_num) :
                     field = result['images'][0]['fields'][i]['name']
                     infer_text = result['images'][0]['fields'][i]['inferText']
-                    reg_expression = r"/[ \{\}\[\]\/?.,;:|\)*~`!^\-_+┼<>@\#$%&\ '\"\\(\=]/"
+                    reg_expression = r"[-=+,#/\?:^$.@*\"※~&%ㆍ!』\\‘|\(\)\[\]\<\>`\'…》]"
                     infer_text = re.sub(reg_expression,"", infer_text)
 
                     try :
@@ -310,7 +310,7 @@ def naver_ocr_processing(ocr_jpg_files, paths_to_handle, api_url, secret_key) :
     with open(os.path.join(daily_working_json_path, json_file_name), 'w', encoding='utf-8') as f :
         json.dump(ocr_result_total, f, indent=4)
     
-    xls_fields = ['no','file_name', 'title','발급기관', '차량번호', '위반장소', '위반일시', '위반내용', '납부기한', '납부금액']
+    xls_fields = ['no','file_name', 'title','발급기관', '행정기관', '차량번호', '위반장소', '위반일시', '위반내용', '납부기한', '납부금액']
 
     assorted_dict = {}
     for k, v in ocr_result_total.items() :
@@ -342,7 +342,7 @@ def end_word_processing(data) :
         data = data.strip()
         data_list = data.split(sep = " ")
         word_len = len(data_list)
-        
+
         if data_list[-1].endswith('과') :
             sg_word = ['청장', '시장']
             if any(keyword in data_list[-1] for keyword in sg_word) :
@@ -378,7 +378,7 @@ def fine_gubun(data) :
 
 def ocr_df_processing(df) :
     xls_raw_df = df.copy()
-    office_cd_df = pd.read_pickle(r'src\office_codes.pkl')
+    office_cd_df = pd.read_csv(r'src\office_codes.csv', delimiter = '\t', dtype = {'관청코드' : str})
 
     xls_raw_df['office'] = xls_raw_df['title'].fillna('') + "_"+ xls_raw_df['발급기관'].fillna('')
     xls_raw_df['office'] = xls_raw_df['office'].apply(lambda x : x.replace('_', ' '))
@@ -402,7 +402,7 @@ def ocr_df_processing(df) :
 
     for k, v in xls_raw_df.iterrows() :
 
-        office_name = v[10].strip()
+        office_name = v[11].strip()
         office_with_role = v[13].strip()
 
         if office_name.endswith('과') :
@@ -435,7 +435,6 @@ def ocr_df_processing(df) :
     xls_raw_df['관청명칭_upload'] = final_office_names
     
     return xls_raw_df
-
 
 
 def getListOfFiles(dirName):
