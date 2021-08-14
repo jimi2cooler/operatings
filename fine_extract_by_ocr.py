@@ -378,61 +378,90 @@ def fine_gubun(data) :
 
 def ocr_df_processing(df) :
     xls_raw_df = df.copy()
-    office_cd_df = pd.read_csv(r'src\office_codes.csv', delimiter = '\t', dtype = {'관청코드' : str})
+    office_cd = pd.read_csv(r'src\office_codes.csv', delimiter = '\t', dtype = {'관청코드' : str})
+    office_split = pd.DataFrame(df['관청명(시군구)'].str.split(' ', 3).tolist(), columns=['L1','L2','L3', 'L4'])
+    office_cd_df =  pd.concat([office_cd, office_split], axis = 1)
 
-    xls_raw_df['office'] = xls_raw_df['title'].fillna('') + "_"+ xls_raw_df['발급기관'].fillna('')
-    xls_raw_df['office'] = xls_raw_df['office'].apply(lambda x : x.replace('_', ' '))
-    xls_raw_df['office'] = xls_raw_df['office'].apply(ends_processing)
-    xls_raw_df['office_1'] = xls_raw_df['office'].apply(end_word_processing)
+    xls_raw_df['office'] = xls_raw_df['title'] + xls_raw_df['발급기관'].fillna('') + xls_raw_df['행정기관'].fillna('')
     xls_raw_df['위반내용'] = xls_raw_df['위반내용'].apply(remove_specials)
     xls_raw_df['위반구분'] = xls_raw_df['위반내용'].apply(fine_gubun)
-    xls_raw_df['office_new'] = xls_raw_df['office_1'].fillna('') + " "+ xls_raw_df['위반구분'].fillna('')
 
-    office_cd_refined_df = office_cd_df[['관청구분', '관청명(시군구)', '관청코드', '관할업무']].reset_index()
-    office_cd_refined_df = office_cd_refined_df[~office_cd_refined_df['관청명(시군구)'].isnull()]
-    office_cd_refined_df['관청명_new'] = office_cd_refined_df['관청명(시군구)'].apply(end_word_processing)
-    office_cd_refined_df['관청_관할업무'] = office_cd_refined_df['관청명_new'].fillna('') + " "+ office_cd_refined_df['관할업무']
+    df_office = office_cd_df[['관청구분', '관청명(시군구)', '관청코드', '관할업무', 'L1','L2','L3', 'L4']].reset_index()
+    df_office = df_office[~office_cd_refined_df['관청명(시군구)'].isnull()]
 
-    # 관청명을 비교하여 관청코드, 관청명 찾기
-    unique_office_with_role = office_cd_refined_df['관청_관할업무'].unique()
-    unique_office = office_cd_refined_df['관청명(시군구)'].unique()
+    merged_office_names = xls_raw_df['office'].to_list()
+    merged_fine_reason = xls_raw_df['위반내용'].to_list()
 
-    office_cds = []
-    final_office_names = []
+    office_cd_extracted = []
 
-    for k, v in xls_raw_df.iterrows() :
+    def find_match(name_list, name) :
+        for keyword in name_list :
+            if keyword in name : return keyword
+            else : continue
+        return None
 
-        office_name = v[11].strip()
-        office_with_role = v[13].strip()
+    for i, name in enumerate(merged_office_names) :
+        L1_office, L2_office, L3_office, L4_office, office_cd = None, None, None, None, None
 
-        if office_name.endswith('과') :
-            if process.extract(office_name, unique_office, scorer=fuzz.token_set_ratio) == 100 :
-                office_cd = office_cd_refined_df['관청코드'][office_cd_refined_df['관청명(시군구)'] == res_pairs[0][0]].iloc[0]
-                final_office_name = office_cd_refined_df['관청명(시군구)'][office_cd_refined_df['관청명(시군구)'] == res_pairs[0][0]].iloc[0]                
-            else :
-                res_pairs = process.extract(office_name, unique_office, scorer=fuzz.token_sort_ratio)
-                if res_pairs[0][1] <80 :
-                    office_cd = ''
-                    final_office_name = ''
-                else :
-                    office_cd = office_cd_refined_df['관청코드'][office_cd_refined_df['관청명(시군구)'] == res_pairs[0][0]].iloc[0]
-                    final_office_name = office_cd_refined_df['관청명(시군구)'][office_cd_refined_df['관청명(시군구)'] == res_pairs[0][0]].iloc[0]
-            
-        else :
-            res_pairs = process.extract(office_with_role, unique_office_with_role, scorer=fuzz.token_sort_ratio)
-            if res_pairs[0][1] <80 :
-                office_cd = ''
-                final_office_name = ''
-            else :
-                office_cd = office_cd_refined_df['관청코드'][office_cd_refined_df['관청_관할업무'] == res_pairs[0][0]].iloc[0]
-                final_office_name = office_cd_refined_df['관청명(시군구)'][office_cd_refined_df['관청_관할업무'] == res_pairs[0][0]].iloc[0]
+        L1_list = df_office['L1'].unique()
+        L1_office = find_match(L1_list, name)
         
-        office_cds.append(office_cd)
-        final_office_names.append(final_office_name)
+        if L1_office is not None :
+            L2_list_tmp = df_office['L2'][df_office['L1'] == L1_office].unique()
+            L2_list = list(filter(None, L2_list_tmp))
+            L2_office = find_match(L2_list, name)
 
-    # department_df.to_excel('department.xlsx')
-    xls_raw_df['관청코드_upload'] = office_cds
-    xls_raw_df['관청명칭_upload'] = final_office_names
+            if L2_office is not None :
+                L3_list_tmp = df_office['L3'][(df_office['L1'] == L1_office) & (df_office['L2'] == L2_office)].unique()
+                L3_list = list(filter(None, L3_list_tmp))
+                L3_office = find_match(L3_list, name)
+
+                if L3_office is not None :
+                    L4_list_tmp = df_office['L4'][(df_office['L1'] == L1_office) & (df_office['L2'] == L2_office) &  (df_office['L3'] == L3_office)].unique()
+                    L4_list = list(filter(None, L4_list_tmp))
+                    L4_office = find_match(L4_list, name)
+
+                    if L4_office is None :
+                        office_cd_list = df_office['관청코드'][(df_office['L1'] == L1_office) & (df_office['L2'] == L2_office)& (df_office['L3'] == L3_office)].to_list()
+                        # if len(office_cd_list) == 1 : office_cd = office_cd_list[0]
+                        office_cd = office_cd_list[0]
+                        # else : office_cd = None
+
+                    else :
+                        office_cd_list = df_office['관청코드'][(df_office['L1'] == L1_office) & (df_office['L2'] == L2_office) & (df_office['L3'] == L3_office)& (df_office['L4'] == L4_office)].to_list()
+                        if len(office_cd_list) == 1 : office_cd = office_cd_list[0] 
+                        else : office_cd = None
+
+                else : 
+                    L3_office = None
+                    office_cd_list = df_office['관청코드'][(df_office['L1'] == L1_office) & (df_office['L2'] == L2_office)].to_list()
+                    if len(office_cd_list) == 1 : office_cd = office_cd_list[0]
+                    elif len(office_cd_list) > 1 :
+                        office_cd_list = df_office['관청코드'][(df_office['L1'] == L1_office) & (df_office['L2'] == L2_office) & (df_office['관할업무'] == merged_fine_reason[i])].to_list()
+                        print(merged_fine_reason[i])
+                        if len(office_cd_list) == 1 : office_cd = office_cd_list[0]
+                    else : office_cd = None
+
+            else : 
+                L2_office = None
+                office_cd_list = df_office['관청코드'][df_office['L1'] == L1_office].to_list()
+                if len(office_cd_list) == 1 : office_cd = office_cd_list[0]
+                else : office_cd = None
+
+        else : L1_office = None
+
+        office_cd_extracted.append(office_cd)
+    
+    xls_raw_df['관청코드_upload'] = office_cd_extracted
+    
+    def find_office_name(df_office, cd) :
+        try :
+            office_name = df_office['관청명(시군구)'][df_office['관청코드'] == cd].to_list()[0]
+            return office_name
+        except :
+            return None
+        
+    xls_raw_df['관청명칭_upload'] = total_df['관청코드_upload'].apply(lambda x : find_office_name(df_office, x))
     
     return xls_raw_df
 
