@@ -1,29 +1,36 @@
 {
-"header" : {
-    "TR2608" : ["관리부서", "거래처명", "실행번호", "실행일", "처리일", "물건처리", "상환구분", "승인상태", "선수금",
-       "실제입금액", "상환전잔액", "상환원금", "중도상환수수료", "규손금", "보증금", "장기선수금", "차량번호",
-       "물건명", "상품명", "회계구분"],
+"secret" : {
+    "metro_politan" : 
+        {"api_url" : "https://29280af484d34729ada88dcd3bbbfe3a.apigw.ntruss.com/custom/v1/2043/aaa9cf96ce49c5c8d3e6bea76d81bc480f60c807ef941cb7af2c817fd1f47c71/infer",
+        "secret_key" : "d0RuY0NacklPRmxXdW13SG1ya21mT2VLZnhXVGpaSFg="},
     
-    "TR2100" : ["No", "심의의결기구", "개최년도", "차수", "세부안건번호", "안건명", "거래상대방", "신규여부", "서면여부",
-       "주요자산형태", "통화", "부의금액", "심의결과", "승인금액", "담당부팀점", "개최일자", "심의완료일자",
-       "승인유효일자", "품의여부", "품의일자", "실행일자", "대출금액", "여신잔액", "투자잔액(취득)",
-       "투자잔액(평가)", "잔고수량", "품의번호", "실행번호", "실행상태", "상품코드", "상품명", "고객코드",
-       "고객명", "원금상환형태", "한도여신여부", "계약금액", "한도잔액", "만기일", "한도계약만기일", "마감일자",
-       "마감구분", "대출기간/투자기간", "변동금리여부", "기본금리", "가산금리", "기초자산명", "발행회사",
-       "업무집행조합원(GP)", "운용사", "종목코드(ISIN)", "종목명(한글)", "투자조합법적유형", "회사채등급고객",
-       "어음등급고객", "기업등급고객", "신용공여1고객번호", "신용공여1고객명 신용공여1사업지위", "신용공여1형태",
-       "신용공여1세부형태", "신용공여1약정미이행효과", "신용공여1회사채등급 신용공여2고객번호", "신용공여2고객명",
-       "신용공여2사업지위", "신용공여2형태", "신용공여2세부형태", "신용공여2약정미이행효과", "신용공여2회사채등급"],
-    
-    "TR2008" : ["회계그룹", "부서", "품의번호", "공동계약", "품의상태", "고객명", "전결권자", "품의사유", "상품명",
-       "품의일자", "승인일자", "여신금액", "리스료", "여신기간", "고객이자율", "IRR", "여신시작일", "여신종료일",
-       "보증금", "무보증잔가", "보증잔가", "원금유예금액", "공급자명", "종료후처리", "회계처리구분"]
-},
+    "province" : 
+        {"api_url" : "https://29280af484d34729ada88dcd3bbbfe3a.apigw.ntruss.com/custom/v1/5369/d21e15b51cb358a639642abb48d8c82690ef1d03102fab6474fb880fc57fd39c/infer",
+        "secret_key" : "T2ZkVWZCWUFWRXVEUmFLTVpMekpxRkpOY2pNVGplVk8="},
+
+    "token_duty" : 
+        {"api_url" : "https://29280af484d34729ada88dcd3bbbfe3a.apigw.ntruss.com/custom/v1/2044/1ffeae9160f258c913e7676502d4deb33a54af5e167411995e9a4e809cb16ae6/infer",
+        "secret_key" : "R21EYk5HT3VOVEphQ1VVdEVTbXZlaFFjUkZmaVVFYUw="}
+    },
     
 "folder" : {
-    "data_lastest" : "data/latest/", 
-    "data_output" : "data/output/"
-
+    "images_to_ocr_path" : "rsc/scanned_images_with_templates/", 
+    "images_to_non_ocr_path" : "rsc/scanned_images_with_no_templates/",
+    "images_processing_path" : "output/temp_jpg/",
+    "ocr_to_jpg_path" : "output/ocr_to_jpg/",
+    "non_ocr_to_jpg_path" : "output/non_ocr_to_jpg/",
+    "ocr_error_path" : "output/ocr_error/",
+    "jpg_to_mac_upload_path" : "output/jpg_to_mac_upload/",
+    "ocr_result_csv_path" : "output/ocr_result_xls/",
+    "save_raw_images" : "data/0_raw_tiff/",
+    "xls_to_mac_upload_path" : "output/exls_to_mac_upload/",
+    "save_xls_files" : "data/0_raw_xls/",
+    "save_json_files" : "data/0_raw_json/",
+    "images_to_pdf_contract" : "rsc/lease_contract_pdfs/", 
+    "excel_to_contract" : "rsc/lease_contract_csv/",
+    "lease_contract_to_jpg" : "output/lease_contract_jpg/",
+    "save_lease_contracts" : "data/0_raw_lease_contract/"
 }
+
 
 }
