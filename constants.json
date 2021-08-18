@@ -1,16 +1,6 @@
 {
 "secret" : {
-    "metro_politan" : 
-        {"api_url" : "https://29280af484d34729ada88dcd3bbbfe3a.apigw.ntruss.com/custom/v1/2043/aaa9cf96ce49c5c8d3e6bea76d81bc480f60c807ef941cb7af2c817fd1f47c71/infer",
-        "secret_key" : "d0RuY0NacklPRmxXdW13SG1ya21mT2VLZnhXVGpaSFg="},
     
-    "province" : 
-        {"api_url" : "https://29280af484d34729ada88dcd3bbbfe3a.apigw.ntruss.com/custom/v1/5369/d21e15b51cb358a639642abb48d8c82690ef1d03102fab6474fb880fc57fd39c/infer",
-        "secret_key" : "T2ZkVWZCWUFWRXVEUmFLTVpMekpxRkpOY2pNVGplVk8="},
-
-    "token_duty" : 
-        {"api_url" : "https://29280af484d34729ada88dcd3bbbfe3a.apigw.ntruss.com/custom/v1/2044/1ffeae9160f258c913e7676502d4deb33a54af5e167411995e9a4e809cb16ae6/infer",
-        "secret_key" : "R21EYk5HT3VOVEphQ1VVdEVTbXZlaFFjUkZmaVVFYUw="}
     },
     
 "folder" : {
