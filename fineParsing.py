@@ -1,7 +1,7 @@
 import os, glob
 from pathlib import Path
 from PIL import Image
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import requests
 import uuid
 import time
@@ -11,6 +11,7 @@ import csv, re
 from requests.models import encode_multipart_formdata
 import urllib3
 import pandas as pd
+pd.options.mode.chained_assignment = None
 import pickle
 from fuzzywuzzy import process, fuzz
 
@@ -69,10 +70,20 @@ def make_folder(json_data) :
     return paths_to_handle
 
 # 담당과 찾기
-def office_inCharge(x):
-    reg_x = r'(([가-힣])*(주차|관리|교통|장애|복지|차량|행복|가정|청소|가로|정비|사회|경제|안전|노인|위생|환경|도시|버스|민원)+([가-힣]+)?(과|단))'
+def office_inCharge(x, div_cd):
+    reg_x = r'(([가-힣]+)?(주차|관리|교통|장애|복지|차량|행복|가정|청소|가로|정비|사회|경제|안전|노인|위생|환경|도시|버스|민원)+([가-힣]+)?과)'
+    
+    office_cd = list(filter(lambda x : x.endswith('과'), div_cd))
+
     try:
-        return re.search(reg_x, x).group()
+        div_list = list(re.findall(reg_x, x))
+        div_list = list(filter(lambda x : len(x) > 1, div_list))
+        # for txt in div_list[0] :
+        #     if txt in office_cd :
+        #         print(txt)
+        #         return txt
+        intersect_list = list(set(div_list[0]).intersection(set(office_cd)))
+        return intersect_list[0]
     except:
         return None
 
@@ -138,18 +149,18 @@ def make_date(x):
     yr = datetime.strftime(datetime.today(), '%Y')
     if (int(yr[0:2])-1 <= int(num_text[0:2]) <= int(yr[0:2])+1) or (int(yr[3:4])-1 <= int(num_text[0:2]) <= int(yr[3:4])+1) :
         if 13 <= len(num_text) <= 14:
-            return pd.to_datetime(num_text, format='%Y%m%d%H%M%S', errors='ignore')
+            return pd.to_datetime(num_text, format='%Y%m%d%H%M%S', errors='coerce')
         elif 10 <= len(num_text) <= 12:
             if num_text.startswith('20') :
-                return pd.to_datetime(num_text, format='%Y%m%d%H%M', errors='ignore')
+                return pd.to_datetime(num_text, format='%Y%m%d%H%M', errors='coerce')
             else :
-                return pd.to_datetime(num_text, format='%y%m%d%H%M', errors='ignore')
+                return pd.to_datetime(num_text, format='%y%m%d%H%M', errors='coerce')
         elif 6 <= len(num_text) <= 9:
-            return pd.to_datetime(num_text, format='%Y%m%d', errors='ignore')
+            return pd.to_datetime(num_text, format='%Y%m%d', errors='coerce')
         elif len(num_text) < 6:
-            return pd.to_datetime(num_text, format='%Y%m%d', errors='ignore')
+            return pd.to_datetime(num_text, format='%Y%m%d', errors='coerce')
         else:
-            return pd.to_datetime(num_text, format='%c', errors='ignore')
+            return pd.to_datetime(num_text, format='%c', errors='coerce')
     else :
         return None
 
@@ -165,13 +176,12 @@ def violation_time(x, toll_yn):
         else:
             x_adj = x
 
-        date_type = [r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?\s?\d{1,2}\s?:\s?\d{2}\s?:\s?\d{2}', r'\d{4}년\d{1,2}월\d{1,2}일\s?\d{2}시\d{2}분', r'\d{2,4}[-./]\d{1,2}[-./]\d{1,2}\s?\d{1,2}:?\d{1,2}',
-                     r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?\d{1,2}\s?:\s?\d{1,2}', r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}']
+        date_type = [r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?\s?\d{1,2}\s?:\s?\d{2}\s?:\s?\d{2}', r'\d{4}년\s?\d{1,2}월\s?\d{1,2}일\s?\d{2}시\s?\d{2}분', r'\d{2,4}[-./]\d{1,2}[-./]\d{1,2}\s?\d{1,2}:?\d{1,2}',
+                     r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?[(/]?\d{1,2}\s?:?\s?\d{1,2}', r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}']
 
         for dt_type in date_type:
             try:
-                date_text = re.search(
-                    dt_type, x_adj).group().replace(' ', '')
+                date_text = re.search(dt_type, x_adj).group().replace(' ', '')
                 return make_date(date_text)
             except:
                 continue
@@ -179,7 +189,7 @@ def violation_time(x, toll_yn):
 
     else:
 
-        if any(a in x for a in ['위반 ', '위반일시', '주차일시', '주차', '위반 일시', '단속일시']):
+        if any(a in x for a in ['위반 ', '위반일시', '주차일시', '주차', '위반 일시', '단속일시', '시간', '일시']):
 
             # 혼잡통행료 예외 처리 (일자 데이터 사이 차량번호 제거)
             car_num_type = re.search(r'\d{2,3}\s?[ㄱ-ㅎ가-힣]{1}\s?\d{4}\s', x)
@@ -189,7 +199,7 @@ def violation_time(x, toll_yn):
                 x_adj = x
 
             date_type = [r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?\d{1,2}\s?:?\s?\d{2}\s?:?\s?\d{2}', r'\d{4}년\s?\d{1,2}월\s?\d{1,2}일\s?\d{2}시\s?\d{2}분', 
-                         r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?\d{1,2}\s?:?\s?\d{1,2}', r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?(?\d{1,2}\s?:?\s?\d{1,2}']
+                         r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}[-./]?\s?[/(]?\d{1,2}\s?:?\s?\d{1,2}', r'\d{4}\s?[-./]\s?\d{1,2}\s?[-./]\s?\d{1,2}\s?(?\d{1,2}\s?:?\s?\d{1,2}']
 
             for dt_type in date_type:
                 try:
@@ -204,34 +214,33 @@ def violation_time(x, toll_yn):
 
 def due_dates(x, toll_yn):
     
+    filter_before = ['까지']
+    for text in filter_before:
+        if text in x:
+            date_type = [r'\d{4}\s?[-./년]\s?\d{1,2}\s?[-./월]\s?\d{1,2}\s?[일]?']
+            for dt_type in date_type:
+                try:
+                    start_index = re.search(text, x).start()
+                    date_text = re.findall(dt_type, x[:start_index])
+                    date_text = list(map(make_date, date_text))
+                    return max(date_text)
+                except:
+                    next
+
     filter_after = ['기한 ', '납부기한', '납기내', '납기일', '납부일']
 
     for text in filter_after:
         if text in x:
-            date_type = [r'\d{4}[-./년]\s?\d{1,2}[-./월]\s?\d{1,2}[일]?']
+            date_type = [r'\d{4}\s?[-./년]\s?\d{1,2}\s?[-./월]\s?\d{1,2}\s?[일]?']
             for dt_type in date_type:
                 try:
                     start_index = re.search(text, x).start()
-                    date_text = re.search(
-                        dt_type, x[start_index+len(text):], re.IGNORECASE).group().replace(' ', '')
+                    date_text = re.search(dt_type, x[start_index+len(text):], re.IGNORECASE).group().replace(' ', '')
                     return make_date(date_text)
                 except:
                     next
 
-    filter_before = ['까지']
-    for text in filter_before:
-        if text in x:
-            date_type = [r'\d{4}[-./년]\s?\d{1,2}[-./월]\s?\d{1,2}[일]?']
-            for dt_type in date_type:
-                try:
-                    start_index = re.search(text, x).start()
-                    date_text = re.search(
-                        dt_type, x[:start_index]).group().replace(' ', '')
-                    return make_date(date_text)
-                except:
-                    next
-
-    date_type = [r'\d{4}[-./년]\s?\d{1,2}[-./월]\s?\d{1,2}[일]?']
+    date_type = [r'\d{4}\s?[-./년]\s?\d{1,2}\s?[-./월]\s?\d{1,2}\s?[일]?']
     for dt_type in date_type:
         try:
             date_text = re.search(dt_type, x).group().replace(' ', '')
@@ -313,15 +322,19 @@ def get_taxation(x):
 # 납부금액 추출
 
 def get_amount(x):
-    filter_text = ['합계금액', '총합계', '합 계', '감경금액', '납기내 금액', '납부금액 (20%감경금액)', '미납요금','납부액', '납부금액', '금액', '금 액', '부과', '과태료']
+    filter_text = ['합계금액', '총합계', '합 계', '감경금액', '납기내 금액', '납부금액 (20%감경금액)', '기한내', '기한 내', '미납요금','납부액', '납부금액', '금액', '금 액', '부과', '과태료']
     
-    for text in filter_text :
-        if text in x :
+    if any(txt in x for txt in filter_text) :
+        matchings = [txt for txt in filter_text if txt in x]  
+        
+        for text in matchings :
+
             start_index = re.search(text, x).start()
             search_range = x[start_index+len(text):]
             try:
                 data_type1 = r'\d{1,3},\d{3}'
                 m_list = re.findall(data_type1, search_range)
+
                 m_list_new = []
                 for amt in m_list :
                     if amt.endswith('0') :
@@ -349,32 +362,32 @@ def get_amount(x):
                                 return int(''.join(re.findall('\d+', m)))*10000
                             else:
                                 m_num = int(''.join(re.findall('\d+', m)))
-                                if m_num%10 == 0 & m_num < 1000000 :
+                                if m_num%10 == 0 & m_num < 3000000 :
                                     return int(m_num)
                                 else :
                                     return None    
             except :
                 next
-            return None    
+        return None    
 
-        else:
-            data_type3 = [r'\d{1,3},\d{3}', r'\d{3,6}\s?원', r'\d{1,3}\s?만원'] # 금액 기준의 Data 가져오기
-            
-            for data in data_type3:
-                try :
-                    m_list = re.findall(data, x)
-                    # m_list_new = []
-                    for amt in m_list :
-                        if int(amt.replace('만원', '').replace('원', '').replace(',', '').strip()) :
-                            if '만원' in amt:
-                                fine = int(''.join(re.findall('\d+', amt)))*10000
+    else:
+        data_type3 = [r'\d{1,3},\d{3}', r'\d{3,6}\s?원', r'\d{1,3}\s?만원'] # 금액 기준의 Data 가져오기
+
+        for data in data_type3:
+            try :
+                m_list = re.findall(data, x)
+                # m_list_new = []
+                for amt in m_list :
+                    if int(amt.replace('만원', '').replace('원', '').replace(',', '').strip()) :
+                        if '만원' in amt:
+                            fine = int(''.join(re.findall('\d+', amt)))*10000
+                            return fine
+                        else :
+                            fine = int(''.join(re.findall('\d+', amt)))
+                            if fine%10 == 0 & fine < 1000000 :
                                 return fine
-                            else :
-                                fine = int(''.join(re.findall('\d+', amt)))
-                                if fine%10 == 0 & fine < 1000000 :
-                                    return fine
-                except :
-                    next
+            except :
+                next
     return None
 
 # 위반장소 추출
@@ -415,26 +428,49 @@ def get_title(x):
 
 # 부과 기관장 추출
 
-def officer_title(x, df_office):
+def officer_title(x, single_office_cd):
     abstract_text = {'경남' : '경상남도', '경북' : '경상북도','전남':'전라남도','전북' : '전라북도','충남':'충청남도','충북':'충청북도','경기' : '경기도', '서울' : '서울특별시','제주':'제주도특별자치도', '세종특별시':'세종특별자치시',
                     '강원' : '강원도', '인천' : '인천광역시', '부산':'부산광역시', '대구':'대구광역시', '대전': '대전광역시', '광주':'광주광역시', '울산':'울산광역시'}
+    single_office_cd = list(filter(lambda x : len(x) > 1 , single_office_cd))
+    single_office_cd.remove('서울특별시')
 
-
-    first_office_name = df_office['관청명(시군구)'].apply(lambda x: x.split(' ')[0] if len(x.split(' ')[0])==1 else '').unique().tolist()
-    
-    for txt in first_office_name :
+    for txt in single_office_cd :
         if txt in x :
-            return txt
+            return (txt, 'S')  #독립적인 조직명 single 
     
-    reg_type = [r'(광주순환|광주제2순환)[가-힣]+\s?[가-힣]+영업소', r'([가-힣]+시)\s?([가-힣]+구청장)', r'[가-힣]+시장', r'[가-힣]+군수',  r'[가-힣]+구청장',  r'[가-힣]+구청', r'[가-힣]+소장']
+    reg_type = [r'(광주순환|광주제2순환)[가-힣]+\s?[가-힣]+영업소', r'[가-힣]+(광역시장|특별시장)',r'([가-힣]+시)\s?([가-힣]+구청장)', r'[가-힣]+시장', r'[가-힣]+군수',  r'[가-힣]+구청장',  r'[가-힣]+구청', r'[가-힣]+소장']
 
     for data in reg_type:
         try:
-            if re.search(data, x) :
-                return re.search(data, x).group()
-        except:
+            officers = re.search(data, x).group()
+            if len(officers.split(' ')) == 1 :
+                office_reg = [r'([가-힣]+(특별시|광역시)[가-힣]+(청장))', r'([가-힣]+(시)[가-힣]+(소장))']
+                for reg in office_reg:
+                    try :
+                        match_word = max(re.findall(reg, officers)[0], key=len)
+                        print(match_word)
+                        split_txt = ['특별시','광역시','시']
+                        for txt in split_txt :
+                            try :
+                                temp_idx = re.search(txt, match_word).start()
+                                new_officer = match_word[0:temp_idx+len(txt)] + ' ' + match_word[temp_idx+len(txt):]
+                                return (new_officer, 'M')
+                            except :
+                                next
+                    except :
+                       next 
+                return (officers, 'M')
+            else :
+                return (officers, 'M')
+        except :
             next
-    return None
+    return (None, None)
+
+    
+
+
+
+
 
 # 부과기관 추출
 def extract_official_adds(df_new) :
@@ -464,23 +500,70 @@ def extract_official_adds(df_new) :
     for txt in except_list :
         full_text = full_text.replace(txt, '')
 
-    adds_type = r'((([가-힣]+(시|도))|(경남|경북|전남|전북|충남|충북|경기|서울|제주))+\s?([가-힣]+(군|구|시|로))+\s?([가-힣]+(구|과))?)'
+    adds_type = r'((([가-힣]+(시|도))|(경남|경북|전남|전북|충남|충북|경기|서울|제주))+\s?([가-힣]+(군|구|시|로))+\s?([가-힣]+(구|소))?)'
     # adds_type = r'(([가-힣]+(시|도))|(경남|경북|전남|전북|충남|충북|경기|서울|제주))+'
-    
+    #_________________________________________________________________________________________#
+    # 상기 regular expression은 2개의 블럭으로 되어 있어 리스트내 2개의 Tuple로 값 반환하므로 변경 시 아래 List Comprehension 변경 필요 ##
     try:
         add_set = []
-        adds_list = re.findall(adds_type, full_text)
+        adds_list = []
+        for t in re.findall(adds_type, full_text) :
+            for a in t :
+                if len(a) > 1 :
+                    adds_list.append(a.strip())
+
         for add in adds_list :
-            for ad in add :
-                if len(ad) > 1 :
-                    add_set.append(ad)
+            if len(add.split(' ')) == 3 :
+                if add.split(' ')[0][-1] == add.split(' ')[1][-1] : # 첫번째랑 두번째 끝이 같을 때 (ex 서울특별시 서울시)
+                    new_add = add.replace(add.split(' ')[1], '').strip()
+                    add_set.append(new_add)
+                elif add.split(' ')[1][-1] == add.split(' ')[2][-1] : # 두번째랑 세번째 끝이 같을 때 (ex 서울특별시 서울시)
+                    new_add = ' '.join(add.split(' ')[0:2]).strip()
+                    add_set.append(new_add)
+                elif add.split(' ')[2][-1] == '로' :
+                    new_add = ' '.join(add.split(' ')[0:2]).strip()
+                    add_set.append(new_add)
+                elif add.split(' ')[1][-1] == '군' : # 두번째가 군일 때 뒤에 오는 것 삭제
+                    new_add = ' '.join(add.split(' ')[0:2]).strip()
+                    add_set.append(new_add)
+                else :
+                    add_set.append(add)
+
+            elif len(add.split(' ')) == 2 :
+                if add.split(' ')[0][-1] == add.split(' ')[1][-1] :
+                    new_add = add.replace(add.split(' ')[1], '').strip()
+                    add_set.append(new_add)
+                elif add.split(' ')[1][-1] == '로' :
+                    new_add = add.replace(add.split(' ')[1], '').strip()
+                    add_set.append(new_add)
+                else :
+                    add_set.append(add)
+                
+            else :
+                if add[-1] == '로' :
+                    new_add = add.replace(add, '').strip()
+                    add_set.append(new_add)
+                elif re.search(r'[가-힣]+(도|특별시|광역시)[가-힣]+(시|군|구)', add) :
+                    split_txt = ['도','특별시','광역시']
+                    for txt in split_txt :
+                        try :
+                            temp_idx = re.search(txt, add).start()
+                            new_add = add[0:temp_idx+len(txt)] + ' ' + add[temp_idx+len(txt):]
+                            add_set.append(new_add)
+                        except :
+                            next
+                    else :
+                        next
+                else :
+                    add_set.append(add)
+
         new_add_set = set(add_set)
         new_add_set_f = max(new_add_set, key=len)
         offical_adds = change_officeName(new_add_set_f)
-        return offical_adds, full_text
+        return offical_adds, full_text, new_add_set
 
     except:
-        return None, full_text
+        return None, full_text, None
 
 def naver_general_ocr(image_files) :
     raw_data = {}
@@ -520,27 +603,29 @@ def naver_general_ocr(image_files) :
 
 def mapping_wetax(ocr_df, refined_wetax_df) :
     # 전자납부번호 있는 df 필터 및 mapping
-    a = ['taxed_office', '과목명', '부과구분', 'car_reg_num', 'violated_time', 'due_date', 'violated_place', '전자납부번호', '부과금액','가산금액', '납부금액', '신고납부관할지', 'total_text']
-    b = ['official_adds', 'office_in_charge', 'car_reg_num', 'elec_invoice', 'violated_date', 'time_type', 'due_date', 'taxation_number', 'due_amount', 'violated_place', 'violated_content', 'taxation_officer', 'refer_text_total']
+    # 위택스 컬럼정보 ['taxed_office', '과목명', '부과구분', 'car_reg_num', 'violated_time', 'due_date', 'violated_place', '전자납부번호', '부과금액','가산금액', '납부금액', '신고납부관할지', 'total_text']
+    # OCR 결과 컬럼정보 [official_adds, office_in_charge_f, car_reg_num, elec_invoice, violated_date, time_type, due_date, taxation_number, due_amount, violated_place, violated_content, taxation_officer, officer_cls, refer_text_total, office_adds_list]
     ocr_df['violated_date'] = ocr_df['violated_date'].dt.strftime('%Y%m%d%H%M%S')
     ocr_df['due_date'] = ocr_df['due_date'].dt.strftime('%Y%m%d%')
     
     df_elecInvoice = ocr_df[~ocr_df['elec_invoice'].isnull()]
     
     first_mapped_df = pd.merge(df_elecInvoice, refined_wetax_df, left_on = 'elec_invoice', right_on = '전자납부번호', how='left')
-    first_mapped_df.to_excel(r'output\first_mapped_df.xlsx')
     
     refined_wetax_second = refined_wetax_df[(~refined_wetax_df['car_reg_num_wetax'].isnull()) & (~refined_wetax_df['violated_time'].isnull())]
-    second_mapped_df = pd.merge(ocr_df, refined_wetax_second, left_on = ['car_reg_num', 'violated_date'], right_on = ['car_reg_num_wetax', 'violated_time'], how='left')
-    second_mapped_df.to_excel(r'output\second_mapped_df.xlsx')
+    ocr_nonNull = ocr_df[(~ocr_df['car_reg_num'].isnull()) & (~ocr_df['violated_date'].isnull())]
+    second_mapped_df = pd.merge(ocr_nonNull, refined_wetax_second, left_on = ['car_reg_num', 'violated_date'], right_on = ['car_reg_num_wetax', 'violated_time'], how='left')
 
-    common_cols = ['index', 'official_adds', 'office_in_charge', 'taxation_officer', 'car_reg_num', 'elec_invoice', 'violated_date', 'time_type', 'due_date', 'taxation_number', 'due_amount', 'violated_place', 'violated_content', 'taxation_officer', 'refer_text_total', 'taxed_office', '과목명', '부과구분', 'car_reg_num_wetax', 'violated_time', 'due_date_wetax', 'violated_place_wetax', '전자납부번호', '부과금액','가산금액', '납부금액', '신고납부관할지', 'total_text']
+    common_cols = ['index', 'official_adds', 'office_in_charge', 'taxation_officer', 'office_adds_list', 'officer_cls', 'car_reg_num', 'elec_invoice', 'violated_date', 'time_type', 'due_date', 'taxation_number', 'due_amount', 'violated_place', 'violated_content',  'refer_text_total', 'taxed_office', '과목명', '부과구분', 'car_reg_num_wetax', 'violated_time', 'due_date_wetax', 'violated_place_wetax', '전자납부번호', '부과금액','가산금액', '납부금액', '신고납부관할지', 'total_text']
     first_mapped_df = first_mapped_df[common_cols]
     second_mapped_df = second_mapped_df[common_cols]
 
     combined_df = pd.concat([first_mapped_df, second_mapped_df], ignore_index=True)
-    combined_df = combined_df.drop_duplicates(['car_reg_num','violated_date'],keep= 'last')
+    combined_df = combined_df.drop_duplicates(['car_reg_num','violated_date'],keep= 'first')
     combined_df.insert(4, '기관명', '')
+
+    # 겹치지 않는 데이터프레임 추출
+    df1[~df1.apply(tuple,1).isin(df2.apply(tuple,1))]
 
     return combined_df
 
@@ -587,7 +672,7 @@ def refine_wetax(wetax_df) :
     return new_wetax
 
 
-def main_process(data, df_office) :
+def main_process(data, div_cd, single_office_cd) :
 
     fields = ["inferText", "lineBreak", "boundingPoly.vertices"]
     df = pd.json_normalize(data['images'][0]['fields'])
@@ -597,7 +682,7 @@ def main_process(data, df_office) :
     df_filter.loc[:, 'y'] = df_filter["boundingPoly.vertices"].apply(lambda x: [x[i]['y'] for i in range(4)])
 
     df_parsed = df_filter[['inferText', 'lineBreak',  'x', 'y']].copy()
-    df_parsed['담당과'] = df_parsed['inferText'].apply(office_inCharge)
+    df_parsed['담당과'] = df_parsed.apply(lambda x: office_inCharge(x['inferText'], div_cd), axis=1) 
     df_parsed['차량번호'] = df_parsed['inferText'].apply(get_carNum)
     df_parsed['전자납부번호'] = df_parsed['inferText'].apply(get_elecInvoice)
 
@@ -624,8 +709,10 @@ def main_process(data, df_office) :
     df_new['납부금액'] = df_new['inferText'].apply(get_amount)
     df_new['위반장소'] = df_new['inferText'].apply(get_place)
     df_new['위반내용'] = df_new['inferText'].apply(get_title)
-    df_new['부과기관장'] = df_new.apply(lambda x: officer_title(x['inferText'], df_office), axis=1) 
-    df_new['담당과'] = df_new['inferText'].apply(office_inCharge)
+    df_new['부과기관장'] = df_new.apply(lambda x: officer_title(x['inferText'], single_office_cd)[0], axis=1) 
+    df_new['기관장구분'] = df_new.apply(lambda x: officer_title(x['inferText'], single_office_cd)[1], axis=1) 
+    # df_new['담당과'] = df_new.apply(lambda x: office_inCharge(x['inferText'], div_cd), axis=1) 
+
 
     # trigger point
     ocr_trigger = min(df_new['y_upper'][df_new['inferText'].str.contains('OCR')], default=0)-50
@@ -658,25 +745,25 @@ def main_process(data, df_office) :
     # 납부기한 추출
     try :
         df_dueDate = df_new['납부기한'][~df_new['납부기한'].isnull()]
-        due_date = max(df_dueDate.where(lambda x : x <= datetime.today() + timedelta(days = 90)))
+        due_date_list = list(filter(lambda x : x <= datetime.today() + timedelta(days = 90), df_dueDate))
+        due_date = max(due_date_list)
     except : due_date = None
 
     # 위반일시 추출
-
     try :
-        df_violatedDate = df_new[['위반일시', '납부기한']][~df_new['위반일시'].isnull()]
-        # df_violatedDate = df_violatedDate.astype(datetime).where(pd.notnull(df),None)
-        # df_violatedDate = df_violatedDate[~df_violatedDate['위반일시'] == np.naT]
-
+        df_violatedDate = df_new['위반일시'][~df_new['위반일시'].isnull()]
         if due_date is not None :
-            violated_dates = df_violatedDate[df_violatedDate['위반일시'] < due_date]
+            violated_dates_list = list(filter(lambda x : x < due_date, df_violatedDate))
+            # violated_dates = df_violatedDate[df_violatedDate['위반일시'] < due_date]
         else :
-            violated_dates = df_violatedDate
-        
-        violated_dates['위반일시'] = violated_dates['위반일시'].apply(pd.to_datetime)
-        violated_dates['구분'] = violated_dates['위반일시'].apply(lambda x : 0 if not (x.hour or x.minute or x.second) else 1)
-        violated_dates = violated_dates.sort_values(['구분', '위반일시'], ascending = [False, True])
+            violated_dates_list = list(df_violatedDate)
 
+        violated_dates_df = pd.DataFrame(violated_dates_list, columns = ['위반일시'])
+        violated_dates_df['구분'] = violated_dates_df['위반일시'].apply(lambda x : 0 if isinstance(x, date) else 1)
+        violated_dates_gb = violated_dates_df.groupby('위반일시')['구분'].count().reset_index(name="count")
+        violated_dates_gb['구분'] = violated_dates_gb['위반일시'].apply(lambda x : 0 if (x.hour == 0) & (x.minute == 0) else 1)
+        violated_dates = violated_dates_gb.sort_values(['구분', '위반일시'], ascending = [False, True])
+        
         if toll_yn == "Y" :
             violated_date = violated_dates['위반일시'].to_list()[0]
         else :
@@ -696,9 +783,9 @@ def main_process(data, df_office) :
             df_dueAmount = df_new[['납부금액', 'inferText']][(~df_new['납부금액'].isnull()) & (df_new['y_lower'] > content_trigger)]
         else :
             df_dueAmount = df_new[['납부금액', 'inferText']][(~df_new['납부금액'].isnull()) & (df_new['y_lower'] > ocr_trigger)]
-        
+
         def tagging(x) :
-            filter_text = {'합계금액' : 10, '총합계' : 10, '합 계' : 10, '감경금액' : 10, '납기내 금액' : 10, '납부금액 (20%감경금액)' : 10, '감경20%' : 10, '납부액' : 9, '납부금액' : 10, '과태료금액' : 5, '과태료' : 5, '본금액' : 0, '금액' : 7, '금 액' : 7, '부과' : 5, '가산금예정' : -10}
+            filter_text = {'합계금액' : 10, '총합계' : 10, '합 계' : 10, '감경금액' : 10, '납기내 금액' : 10, '납부금액 (20%감경금액)' : 10, '감경20%' : 10, '기한내' : 10, '기한 내' : 10, '납부액' : 9, '납부금액' : 10, '과태료금액' : 5, '과태료' : 5, '본금액' : 0, '금액' : 7, '금 액' : 7, '부과' : 5, '가산금예정' : -10}
             for k, v in filter_text.items() :
                 if k in x :
                     return v
@@ -718,8 +805,11 @@ def main_process(data, df_office) :
 
        
         df_dueAmount['구분'] = df_dueAmount['inferText'].apply(tagging)
-        df_dueAmount['구분'] = df_dueAmount.apply(lambda x : -10 if x['납부금액'] == int(car_reg_num[-4:]) else x['구분'], axis=1)
+        if car_reg_num :
+            df_dueAmount['구분'] = df_dueAmount.apply(lambda x : -10 if x['납부금액'] == int(car_reg_num[-4:]) else x['구분'], axis=1)
+
         df_dueAmount['우선'] = df_dueAmount['구분'].apply(lambda x : 1 if x == 10 else 0)
+        
         df_dueAmount_temp = df_dueAmount.copy().reset_index(drop = True)
         df_dueAmount_f = df_dueAmount_temp.groupby('납부금액').agg({'구분' : 'sum', '우선' : 'sum'})
 
@@ -738,24 +828,65 @@ def main_process(data, df_office) :
     try :
         violated_content_df = df_new['위반내용'][~df_new['위반내용'].isnull()].to_list()
         violated_content_df.sort(key=len)
-        violated_content = violated_content_df[0].replace(':', '').strip()
+        violated_content_t = violated_content_df[0].replace(':', '').strip()
+        filter_text = ['부근', '인근']
+        for txt in filter_text :
+            try :
+                start_index = violated_content_t.find(txt)
+                violated_content = violated_content_t[0: start_index+len(txt)]
+            except :
+                next
+        violated_content = violated_content_t
     except : violated_content = None
 
     # 부과기관장 추출
     try :   
-        words_filter = ['미래에셋캐피탈주식회사', '미래에셋캐피탈 주식회사']
-        df_officer = df_new['부과기관장'][(~df_new['부과기관장'].isnull()) & (~df_new['부과기관장'].isin(words_filter))]
+        df_officer = df_new['부과기관장'][~df_new['부과기관장'].isnull()]
         taxation_officer_s = df_officer.value_counts(ascending = False)
-        taxation_officer = taxation_officer_s.index[0]
-
+        count_list = list(taxation_officer_s.values)
+        if count_list.count(count_list[0]) == len(count_list) :
+            taxation_officer_s.index.str.len().sort_values(ascending = True)
+            taxation_officer = taxation_officer_s.index[0]
+        else :
+            taxation_officer = taxation_officer_s.index[0]
     except :
         taxation_officer = None
+    
+    # 기관장 구분 추출
+    if taxation_officer is not None :
+        officer_cls = df_new['기관장구분'][df_new['부과기관장'] == taxation_officer].values[0]
+    else :
+        officer_cls = None
 
     # 담당과 추출
     office_in_charge_f = office_in_charge.pop() if len(office_in_charge) > 0 else ''
 
     # 부과기관 주소 추출
-    official_adds, full_text = extract_official_adds(df_new)
+    official_adds, full_text, office_adds_set = extract_official_adds(df_new)  # 부과기관 주소, 표지페이지 Full text, 부과기관명 Set 가져오기
+
+    # 기관코드 추출을 위한 통합 Data Set
+    def revise_end_words(x, officer_cls) :
+        if officer_cls == 'M' :
+            x.strip()
+            if x.endswith('시장') : return x[0:-1]
+            elif x.endswith('구청장') : return x[0:-2]
+            elif x.endswith('군수') : return x[0:-1]
+            elif x.endswith('구청') : return x[0:-1]
+            elif x.endswith('출장소장') : return x[0:-1]
+            else : return x
+        else : return x
+
+    revised_tax_officer = revise_end_words(taxation_officer, officer_cls)
+    print(revised_tax_officer)
+    office_adds_list = []
+    if office_adds_set :
+        office_adds_list.append(list(office_adds_set))
+        office_adds_list.append(office_in_charge_f)
+        office_adds_list.append(revised_tax_officer)
+    else :
+        office_adds_list.append(office_in_charge_f)
+        office_adds_list.append(revised_tax_officer)
+
 
     # 위반일시의 Time형식 여부 추출
     try :
@@ -764,22 +895,29 @@ def main_process(data, df_office) :
         time_type = 'N'
 
     # 참고 Text 합성
+    def hms(x) :
+        try :
+            return re.search(r'\d{1,2}\s?:\s?d{1,2}\s?:\s?d{1,2}', x).group().replace(' ', '')
+        except :
+            return None
 
-    df_refer = df_new[['inferText', '차량번호', '전자납부번호', '납세번호', '위반일시', '위반장소', '위반내용', '납부기한', '납부금액', '부과기관장', '유료도로여부']]
-    df_refer = df_refer.astype(object).where(pd.notnull(df),None)
+    df_refer = df_new[['inferText', '차량번호', '전자납부번호', '납세번호', '위반일시', '위반장소', '위반내용', '납부기한', '납부금액', '부과기관장']]
+    df_refer['시분초'] = df_refer['inferText'].apply(hms) # 시분초 형태가 있는 row 추가
+    df_refer = df_refer.astype(object).where(pd.notnull(df_refer),None)
     refer_text = []
+
     for k, v in df_refer.iterrows() :
         cnt = 0
         for vv in v[1:] :
             if vv is not None :
                 cnt +=1
-        if cnt == 0 :
-            refer_text.append(v[0])
+        if cnt > 0 :
+            refer_text.append(str(v[0]))
 
     refer_text_total = '\n'.join(refer_text)
-    print(car_reg_num, elec_invoice, violated_date, time_type, due_date, taxation_officer)
+    print(official_adds, office_in_charge_f, car_reg_num, elec_invoice, violated_date, time_type, due_date, taxation_number, due_amount, violated_place, violated_content, taxation_officer, officer_cls, office_adds_list)
 
-    return [official_adds, office_in_charge_f, car_reg_num, elec_invoice, violated_date, time_type, due_date, taxation_number, due_amount, violated_place, violated_content, taxation_officer, refer_text_total]
+    return [official_adds, office_in_charge_f, car_reg_num, elec_invoice, violated_date, time_type, due_date, taxation_number, due_amount, violated_place, violated_content, taxation_officer, officer_cls, refer_text_total, office_adds_list]
 
 
 def main():
@@ -819,30 +957,34 @@ def main():
     # print("Naver General OCR Raw Data Saved as JSON Format!!")
 
     # 임시 테스트
-    with open(r'rsc\general_ocr_results_json.json') as json_file:
+    with open(r'rsc\templates_rawData.json', encoding='utf-8') as json_file:
         parsed_data = json.load(json_file)
     
-    df_office = pd.read_csv(r'src\office_codes.csv', delimiter = '\t', encoding = 'utf-8', dtype = {'관청코드' : str})
+    office_cd = pd.read_csv(r'src\office_codes.csv', delimiter = '\t', encoding = 'utf-8', dtype = {'관청코드' : str})
+    div_cd = office_cd['관청명(시군구)'].apply(lambda x: x.split(' ')[-1]).unique().tolist()
+    single_office_cd = office_cd['관청명(시군구)'].apply(lambda x: x.split(' ')[0] if len(x.split(' '))==1 else '').unique().tolist()
 
     total_dict = {}
     for k, v in parsed_data.items() :
-        result_set = main_process(v, df_office)
-        total_dict[k] = result_set
+        if k == '전라남도_장흥군_재난안전과_16너4784_20210725153100' :
+            result_set = main_process(v, div_cd, single_office_cd)
+            total_dict[k] = result_set
     print("Fine Data Extracted!!")
 
-    df_final = pd.DataFrame(total_dict.values(), index = total_dict.keys(), columns = ['official_adds', 'office_in_charge', 'car_reg_num', 'elec_invoice', 'violated_date', 'time_type', 'due_date', 'taxation_number', 'due_amount', 'violated_place', 'violated_content', 'taxation_officer', 'refer_text_total']).reset_index()
-    
-    # 위택스 매핑
-    df_wetax = pd.read_csv(r'rsc\wetax.csv', delimiter = '\t', encoding = 'utf-8', dtype = {'전자납부번호' : str})
-    refinded_wetax = refine_wetax(df_wetax)
-    mapped_df = mapping_wetax(df_final, refinded_wetax)
-    
-    daily_working_path = os.path.join(paths_to_handle[7], working_date[0:8]) 
-    if not os.path.isdir(daily_working_path):                                                           
-        os.mkdir(daily_working_path)
+    df_final = pd.DataFrame(total_dict.values(), index = total_dict.keys(), columns = ['official_adds', 'office_in_charge', 'office_adds_set', 'car_reg_num', 'elec_invoice', 'violated_date', 'time_type', 'due_date', 'taxation_number', 'due_amount', 'violated_place', 'violated_content', 'taxation_officer', 'officer_class', 'refer_text_total']).reset_index()
 
-    xlsx_file_name = "naver_general_ocr_result_" + working_date + '.xlsx'
-    mapped_df.to_excel(os.path.join(daily_working_path, xlsx_file_name), index=False)
+    # df_final.to_excel(r'output\ocr_result_xls\test_xls.xlsx')
+    # 위택스 매핑
+    # df_wetax = pd.read_csv(r'rsc\wetax.csv', delimiter = '\t', encoding = 'utf-8', dtype = {'전자납부번호' : str})
+    # refinded_wetax = refine_wetax(df_wetax)
+    # mapped_df = mapping_wetax(df_final, refinded_wetax)
+    
+    # daily_working_path = os.path.join(paths_to_handle[7], working_date[0:8]) 
+    # if not os.path.isdir(daily_working_path):                                                           
+    #     os.mkdir(daily_working_path)
+
+    # xlsx_file_name = "naver_general_ocr_result_" + working_date + '.xlsx'
+    # mapped_df.to_excel(os.path.join(daily_working_path, xlsx_file_name), index=False)
 
     print("Excel File Saved!!")
 
